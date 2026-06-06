@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Siren, MapPin, Phone, MessageSquare, X, CheckCircle, AlertTriangle, Mic, MicOff } from 'lucide-react'
 
@@ -64,6 +64,14 @@ export default function EmergencySOS() {
     setRecording(false)
     setTimeout(() => setPhase('idle'), 3000)
   }
+
+  // Cleanup timers on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      clearInterval(holdInterval.current)
+      clearInterval(stepInterval.current)
+    }
+  }, [])
 
   return (
     <section id="sos" className="py-20 bg-gradient-to-b from-cream to-white relative overflow-hidden">
@@ -137,7 +145,7 @@ export default function EmergencySOS() {
                 whileTap={{ scale: 0.95 }}
                 className={`relative w-48 h-48 rounded-full flex flex-col items-center justify-center select-none transition-all duration-300 ${
                   phase === 'active'
-                    ? 'bg-sos-gradient shadow-glow-red sos-btn cursor-default'
+                    ? 'bg-crimson shadow-glow-red cursor-default'
                     : phase === 'holding'
                     ? 'bg-crimson shadow-glow-red cursor-pointer'
                     : 'bg-crimson hover:bg-crimson-light shadow-[0_8px_32px_rgba(185,28,28,0.35)] cursor-pointer'

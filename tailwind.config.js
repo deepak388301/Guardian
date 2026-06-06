@@ -11,6 +11,7 @@ export default {
         'crimson-light':     '#E74C3C',
         'sage':              '#7FB069',
         'sage-light':        '#A8D5A2',
+        'sage-pale':         '#E8F5E3',
         'slate':             '#5D6D7E',
         'slate-light':       '#85929E',
         'cream':             '#F8FAFC',

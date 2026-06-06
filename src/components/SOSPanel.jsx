@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Siren, MapPin, MessageSquare, Send, CheckCircle, Phone, AlertTriangle } from 'lucide-react'
 import { useContacts } from '../App'
@@ -14,6 +14,19 @@ export default function SOSPanel() {
   const [sentTo, setSentTo] = useState([])
   const [countdown, setCountdown] = useState(5)
   const timerRef = useRef(null)
+  const sendTimeoutRef = useRef(null)
+  const sentRef = useRef(false) // guard against double-fire
+  // Always keep a current ref of contacts to avoid stale closure in setInterval
+  const contactsRef = useRef(contacts)
+  useEffect(() => { contactsRef.current = contacts }, [contacts])
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      clearInterval(timerRef.current)
+      clearTimeout(sendTimeoutRef.current)
+    }
+  }, [])
 
   const getLocation = () => {
     if (navigator.geolocation) {
@@ -28,6 +41,7 @@ export default function SOSPanel() {
     getLocation()
     setPhase('confirm')
     setCountdown(5)
+    sentRef.current = false
     let c = 5
     timerRef.current = setInterval(() => {
       c -= 1
@@ -41,16 +55,22 @@ export default function SOSPanel() {
 
   const cancelSOS = () => {
     clearInterval(timerRef.current)
+    clearTimeout(sendTimeoutRef.current)
+    sentRef.current = false
     setPhase('idle')
     setCountdown(5)
   }
 
   const triggerSend = () => {
+    // Guard: prevent double-fire from both the countdown and "Send Now" button
+    if (sentRef.current) return
+    sentRef.current = true
     clearInterval(timerRef.current)
     setPhase('sending')
-    // Simulate sending delay per contact
-    setTimeout(() => {
-      setSentTo(contacts.map(c => c.id))
+    // Snapshot the full contact objects at send time — avoids stale-state in the "sent" screen
+    const snapshot = [...contactsRef.current]
+    sendTimeoutRef.current = setTimeout(() => {
+      setSentTo(snapshot)   // store full objects, not just IDs
       setPhase('sent')
     }, 1800)
   }
@@ -60,8 +80,10 @@ export default function SOSPanel() {
     setSentTo([])
     setLocation('')
     setCountdown(5)
+    sentRef.current = false
   }
 
+  // Recompute message reactively so it reflects async location updates
   const message = SOS_MESSAGE(senderName, location)
 
   return (
@@ -214,7 +236,8 @@ export default function SOSPanel() {
                   </motion.div>
                   <h3 className="text-xl font-black text-safety-blue mb-2">SOS Sent Successfully</h3>
                   <p className="text-slate text-sm mb-2">
-                    {contacts.length} contact{contacts.length !== 1 ? 's' : ''} notified with your location.
+                    {/* Use sentTo (snapshot) count — not live contacts.length */}
+                    {sentTo.length} contact{sentTo.length !== 1 ? 's' : ''} notified with your location.
                   </p>
                   {location && (
                     <div className="flex items-center justify-center gap-1.5 text-xs text-slate-light mb-6">
@@ -222,14 +245,24 @@ export default function SOSPanel() {
                       <span>{location}</span>
                     </div>
                   )}
+                  {!location && (
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-slate-light mb-6">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>Location unavailable</span>
+                    </div>
+                  )}
                   <div className="space-y-2 mb-6">
-                    {contacts.map(c => (
+                    {/* Render sentTo snapshot — immune to later contact list changes */}
+                    {sentTo.map(c => (
                       <div key={c.id} className="flex items-center gap-3 bg-sage/5 border border-sage/20 rounded-xl px-4 py-2.5">
                         <CheckCircle className="w-4 h-4 text-sage flex-shrink-0" />
                         <span className="text-safety-blue text-sm font-medium flex-1 text-left">{c.name}</span>
                         <span className="text-slate-light text-xs">{c.phone}</span>
                       </div>
                     ))}
+                    {sentTo.length === 0 && (
+                      <p className="text-slate-light text-sm text-center py-2">No contacts were added at the time of sending.</p>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <a href="tel:911" className="flex-1 flex items-center justify-center gap-2 bg-crimson text-white py-3 rounded-xl font-bold hover:bg-crimson-light transition-colors shadow-glow-red">
